@@ -1,14 +1,14 @@
 import ollama
 import json
 
-MODEL = "llama3.2:1b"
+MODEL = "llama3.2:latest"
 
 OPT={
     "temperature": 0.2,
     "top_p": 0.9,
     "top_k": 40,
     "num_ctx": 8192,
-    "num_predict": 1024,
+    "num_predict": 4096,
     "repeat_penalty": 1.1,
     "seed": 42,
 }
