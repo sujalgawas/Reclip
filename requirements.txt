@@ -4,3 +4,4 @@ yt_dlp
 moviepy
 faster_whisper
 ollama
+torch

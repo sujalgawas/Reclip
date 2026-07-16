@@ -18,9 +18,11 @@ def video_preprocess(state: videoState):
     }
 
 def transcript(state: videoState):
+    print("\n[Transcript Node] Starting transcription node...")
     audio_path = state.get('audio_file_path')
     
     output = audio_to_txt(audio_path)
+    print(f"[Transcript Node] Transcription complete. Got {len(output)} segments.\n")
     
     return {
         'time_stamp': output,
@@ -28,22 +30,45 @@ def transcript(state: videoState):
     }
 
 def llm_classification(state: videoState):
+    print("\n[LLM Classification] Starting classification...")
     time_stamp = state.get('time_stamp')
+    print(f"[LLM Classification] Processing {len(time_stamp)} segments...")
 
     chunk = []
     clips = []
+    chunk_num = 0
 
-    for segment in time_stamp:
-        chunk.append(segment)
+    try:
+        for idx, segment in enumerate(time_stamp):
+            chunk.append(segment)
 
-        if len(chunk) == 40:
-            output = llm_cliper(system_prompt=SYSTEM_PROMPT, query=chunk)
-            clips.extend(output)
-            chunk = []
+            if len(chunk) == 40:
+                chunk_num += 1
+                print(f"[LLM Classification] Sending chunk {chunk_num} to LLM ({len(chunk)} segments)...")
+                try:
+                    output = llm_cliper(system_prompt=SYSTEM_PROMPT, query=chunk)
+                    clips.extend(output)
+                    print(f"[LLM Classification] Chunk {chunk_num} complete. Got {len(output)} clips.")
+                except Exception as e:
+                    print(f"[LLM Classification] Error processing chunk {chunk_num}: {e}")
+                    raise
+                chunk = []
 
-    if chunk:
-        output = llm_cliper(system_prompt=SYSTEM_PROMPT, query=chunk)
-        clips.extend(output)
+        if chunk:
+            chunk_num += 1
+            print(f"[LLM Classification] Sending final chunk {chunk_num} to LLM ({len(chunk)} segments)...")
+            try:
+                output = llm_cliper(system_prompt=SYSTEM_PROMPT, query=chunk)
+                clips.extend(output)
+                print(f"[LLM Classification] Final chunk complete. Got {len(output)} clips.")
+            except Exception as e:
+                print(f"[LLM Classification] Error processing final chunk: {e}")
+                raise
+
+        print(f"[LLM Classification] Classification complete. Total clips: {len(clips)}")
+    except Exception as e:
+        print(f"[LLM Classification] Fatal error: {e}")
+        raise
 
     return {
         'clips_transcript': clips,
@@ -51,14 +76,24 @@ def llm_classification(state: videoState):
     }
 
 def creating_clips(state: videoState):
+    print("\n[Creating Clips Node] Starting clip creation...")
     path = state.get('video_file_path')
     clips_transcript = state.get('clips_transcript')
+    print(f"[Creating Clips Node] Creating {len(clips_transcript)} clips...")
     
-    clip = VideoFileClip(path)
-    
-    for clip_data in clips_transcript:
-        cut_clip = clip.subclipped(clip_data['start'], clip_data['end'])
+    try:
+        clip = VideoFileClip(path)
         
-        cut_clip.write_videofile(f"{clip_data['start']}_{clip_data['end']}.mp4")
+        for idx, clip_data in enumerate(clips_transcript):
+            print(f"[Creating Clips Node] Creating clip {idx+1}/{len(clips_transcript)}...")
+            cut_clip = clip.subclipped(clip_data['start'], clip_data['end'])
+            
+            output_file = f"{clip_data['start']}_{clip_data['end']}.mp4"
+            cut_clip.write_videofile(output_file)
+            print(f"[Creating Clips Node] Saved clip to {output_file}")
         
-    return {'message': 'video clips created'}
+        print("[Creating Clips Node] All clips created successfully!")
+        return {'message': 'video clips created'}
+    except Exception as e:
+        print(f"[Creating Clips Node] Error creating clips: {e}")
+        raise

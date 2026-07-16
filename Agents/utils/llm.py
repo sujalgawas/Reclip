@@ -1,7 +1,7 @@
 import ollama
 import json
 
-MODEL = "llama3.2:latest"
+MODEL = "qwen2.5:3b-instruct"
 
 OPT={
     "temperature": 0.2,
