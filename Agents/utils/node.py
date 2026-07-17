@@ -1,9 +1,9 @@
 from Agents.utils.state import videoState
-from Agents.utils.helpers import youtube_download, extract_audio,audio_to_txt
+from Agents.utils.helpers import youtube_download, extract_audio, audio_to_txt, ffmpeg_extract_subclip
 
 from Agents.utils.llm import llm_cliper
 from Agents.utils.prompt import SYSTEM_PROMPT
-from moviepy import VideoFileClip, concatenate_videoclips
+from moviepy import VideoFileClip
 
 def video_preprocess(state: videoState):
     url = state.get('video_link')
@@ -32,6 +32,8 @@ def transcript(state: videoState):
 def llm_classification(state: videoState):
     print("\n[LLM Classification] Starting classification...")
     time_stamp = state.get('time_stamp')
+    if not isinstance(time_stamp, list):
+        raise TypeError(f"Expected time_stamp to be a list, got {type(time_stamp).__name__}")
     print(f"[LLM Classification] Processing {len(time_stamp)} segments...")
 
     chunk = []
@@ -82,16 +84,41 @@ def creating_clips(state: videoState):
     print(f"[Creating Clips Node] Creating {len(clips_transcript)} clips...")
     
     try:
-        clip = VideoFileClip(path)
-        
-        for idx, clip_data in enumerate(clips_transcript):
-            print(f"[Creating Clips Node] Creating clip {idx+1}/{len(clips_transcript)}...")
-            cut_clip = clip.subclipped(clip_data['start'], clip_data['end'])
-            
-            output_file = f"{clip_data['start']}_{clip_data['end']}.mp4"
-            cut_clip.write_videofile(output_file)
-            print(f"[Creating Clips Node] Saved clip to {output_file}")
-        
+        with VideoFileClip(path) as clip:
+            duration = clip.duration
+            for idx, clip_data in enumerate(clips_transcript):
+                print(f"[Creating Clips Node] Creating clip {idx+1}/{len(clips_transcript)}...")
+                if not isinstance(clip_data, dict):
+                    raise TypeError(f"Expected clip data to be a dict, got {type(clip_data).__name__}")
+
+                try:
+                    start = float(clip_data['start'])
+                    end = float(clip_data['end'])
+                except Exception as exc:
+                    raise ValueError(f"Invalid clip boundaries: {clip_data}") from exc
+
+                if start >= end:
+                    raise ValueError(f"Clip start must be before end: {clip_data}")
+
+                if start < 0 or end < 0:
+                    raise ValueError(f"Clip boundaries must be non-negative: {clip_data}")
+
+                if start >= duration:
+                    raise ValueError(
+                        f"Clip start {start} is outside video duration {duration:.2f}"
+                    )
+
+                end = min(end, duration)
+                output_file = f"{start:.2f}_{end:.2f}.mp4"
+
+                try:
+                    ffmpeg_extract_subclip(path, start, end, output_file)
+                    print(f"[Creating Clips Node] Saved clip to {output_file}")
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Failed to extract clip {start:.2f}-{end:.2f}: {exc}"
+                    ) from exc
+
         print("[Creating Clips Node] All clips created successfully!")
         return {'message': 'video clips created'}
     except Exception as e:
