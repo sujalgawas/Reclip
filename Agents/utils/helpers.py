@@ -6,6 +6,7 @@ from moviepy.config import FFMPEG_BINARY
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_audio
 from pathlib import Path
 from faster_whisper import WhisperModel
+from moviepy import AudioFileClip
 
 YDL_OPTS = {
     "format": "bestvideo+bestaudio/best",
@@ -23,6 +24,17 @@ AUDIO_NAME = "extracted_audio.mp3"
 CUR_DIR = Path(__file__).resolve().parent
 
 MODEL_SIZE = 'tiny'
+
+def check_device():
+    try:
+        import torch
+        has_cuda = torch.cuda.is_available()
+    except Exception:
+        has_cuda = False
+
+    device = "cuda" if has_cuda else "cpu"
+    
+    return device
 
 def youtube_download(video_url:str):
     with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
@@ -83,7 +95,6 @@ def audio_to_txt(path):
     if not os.path.exists(path):
         raise FileNotFoundError(f"Audio file not found at {path}")
     
-    from moviepy import AudioFileClip
     with AudioFileClip(path) as audio_clip:
         duration = audio_clip.duration
     
@@ -93,14 +104,9 @@ def audio_to_txt(path):
     num_segments = int(duration / segment_duration) + (1 if duration % segment_duration > 0 else 0)
     print(f"[Transcription] Splitting into {num_segments} segments")
     
-    try:
-        import torch
-        has_cuda = torch.cuda.is_available()
-    except Exception:
-        has_cuda = False
-
-    device = "cuda" if has_cuda else "cpu"
-    compute_type = "float16" if has_cuda else "int8"
+    device = check_device()
+    
+    compute_type = "float16" if device == "cuda" else "int8"
     print(f"[Transcription] Using device: {device}, compute_type: {compute_type}")
     
     model = WhisperModel(MODEL_SIZE, device=device, compute_type=compute_type)

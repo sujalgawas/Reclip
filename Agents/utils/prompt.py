@@ -108,3 +108,9 @@ Output:
 
 Return ONLY a valid JSON list of clip objects, no other text, no markdown formatting, no explanation.
 """
+
+JSON_WRAPPER_INSTRUCTION = """
+You must respond with a single JSON object with exactly one key: "clips".
+"clips" must be a JSON array (possibly empty) of clip objects, each with "start", "end", "text", and "category".
+Do not use any other key name. Do not nest further. Do not include any text outside the JSON object.
+"""
