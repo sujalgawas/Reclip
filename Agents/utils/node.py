@@ -1,8 +1,9 @@
 from Agents.utils.state import videoState
 from Agents.utils.helpers import youtube_download, extract_audio, audio_to_txt, ffmpeg_extract_subclip
 
-from Agents.utils.llm import llm_cliper
-from Agents.utils.prompt import SYSTEM_PROMPT
+from Agents.utils.llm import llm_cliper, llm_title
+
+from Agents.utils.prompt import SYSTEM_PROMPT, TITLE_PROMPT
 from moviepy import VideoFileClip
 
 def video_preprocess(state: videoState):
@@ -23,6 +24,11 @@ def transcript(state: videoState):
     
     output = audio_to_txt(audio_path)
     print(f"[Transcript Node] Transcription complete. Got {len(output)} segments.\n")
+    
+    import json
+
+    with open("./transcript.txt", "w", encoding="utf-8") as file:
+        file.write(json.dumps(output, indent=4, ensure_ascii=False))
     
     return {
         'time_stamp': output,
@@ -77,11 +83,33 @@ def llm_classification(state: videoState):
         'message': 'clips time stamp done'
     }
 
+def title(state: videoState):
+    clips = state.get('clips_transcript')
+    
+    final_clips = []
+    
+    for clip_data in clips:
+        output = llm_title(TITLE_PROMPT,clip_data['text'])
+        clip_data['title'] = output
+        final_clips.append(clip_data)
+    
+    print("=========================")
+    print("clips that where created are")
+    print(final_clips)
+    print("=========================")
+    
+    return {
+        'clips_with_title' : final_clips,
+        'message' : 'title of the clips done'
+    }
+    
+
 def creating_clips(state: videoState):
     print("\n[Creating Clips Node] Starting clip creation...")
     path = state.get('video_file_path')
     clips_transcript = state.get('clips_transcript')
     print(f"[Creating Clips Node] Creating {len(clips_transcript)} clips...")
+    output_title = []
     
     try:
         with VideoFileClip(path) as clip:
@@ -94,6 +122,7 @@ def creating_clips(state: videoState):
                 try:
                     start = float(clip_data['start'])
                     end = float(clip_data['end'])
+                    title = str(clip_data['title'])
                 except Exception as exc:
                     raise ValueError(f"Invalid clip boundaries: {clip_data}") from exc
 
@@ -118,9 +147,17 @@ def creating_clips(state: videoState):
                     raise RuntimeError(
                         f"Failed to extract clip {start:.2f}-{end:.2f}: {exc}"
                     ) from exc
+                    
+                output_title.append({"file_name":output_file,"title":title})
 
         print("[Creating Clips Node] All clips created successfully!")
-        return {'message': 'video clips created'}
+        print("=======================")
+        print(output_title)
+        print("=======================")
+        return {
+            'output_title' : output_title,
+            'message': 'video clips created'
+            }
     except Exception as e:
         print(f"[Creating Clips Node] Error creating clips: {e}")
         raise

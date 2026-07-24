@@ -86,7 +86,50 @@ def normalize_clips(raw_output, wrapped=True):
     normalized = [c for item in clip_list if (c := _normalize_clip_item(item)) is not None]
     return normalized
 
-def call_groq(model_name, system_prompt, query):
+def title_groq(model_name, system_prompt, query):
+    response = GROQ_CLIENT.chat.completions.create(
+        model = model_name,
+        messages = [
+            {"role":"system", "content" : system_prompt},
+            {"role": "user", "content": query}
+        ],
+        temperature=TEMPERATURE,
+        top_p=TOP_P)
+    
+    content = response.choices[0].message.content
+
+    return content
+
+def title_local(model_name, system_prompt, query):
+    response = ollama.chat(
+            model=model_name,
+            messages=[
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': query}
+            ],
+            stream=False,
+            options=LOCAL_OPT
+        )
+    content = response['message']['content']
+    return content
+
+def llm_title(system_prompt, query):
+    try:
+        print(f"[llm_title] trying {GROQ_MODEL_PRIMARY}...")
+        return title_groq(GROQ_MODEL_PRIMARY, system_prompt, query)
+    except (RateLimitError, APIError) as e:
+        print(f"[llm_title] groq 70b failed: {e}")
+
+    try:
+        print(f"[llm_title] trying {GROQ_MODEL_SECONDARY}...")
+        return title_groq(GROQ_MODEL_SECONDARY, system_prompt, query)
+    except (RateLimitError, APIError) as e:
+        print(f"[llm_title] groq 8b failed: {e}")
+
+    print("[llm_title] falling back to local qwen2.5:3b...")
+    return title_local(LOCAL_MODEL, system_prompt, query)
+
+def clip_groq(model_name, system_prompt, query):
     full_prompt = system_prompt + "\n" + JSON_WRAPPER_INSTRUCTION
     response = GROQ_CLIENT.chat.completions.create(
         model=model_name,
@@ -102,7 +145,7 @@ def call_groq(model_name, system_prompt, query):
     return normalize_clips(content, wrapped=True)
 
 
-def call_local(system_prompt, query):
+def clip_local(system_prompt, query):
     response = ollama.chat(
         model=LOCAL_MODEL,
         messages=[
@@ -119,15 +162,15 @@ def call_local(system_prompt, query):
 def llm_cliper(system_prompt, query):
     try:
         print(f"[llm_cliper] trying {GROQ_MODEL_PRIMARY}...")
-        return call_groq(GROQ_MODEL_PRIMARY, system_prompt, query)
+        return clip_groq(GROQ_MODEL_PRIMARY, system_prompt, query)
     except (RateLimitError, APIError) as e:
         print(f"[llm_cliper] groq 70b failed: {e}")
 
     try:
         print(f"[llm_cliper] trying {GROQ_MODEL_SECONDARY}...")
-        return call_groq(GROQ_MODEL_SECONDARY, system_prompt, query)
+        return clip_groq(GROQ_MODEL_SECONDARY, system_prompt, query)
     except (RateLimitError, APIError) as e:
         print(f"[llm_cliper] groq 8b failed: {e}")
 
     print("[llm_cliper] falling back to local qwen2.5:3b...")
-    return call_local(system_prompt, query)
+    return clip_local(system_prompt, query)

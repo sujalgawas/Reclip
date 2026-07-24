@@ -2,4 +2,4 @@ from Agents.agent import get_agent_graph
 
 graph = get_agent_graph()
 
-graph.invoke({"video_link":"https://www.youtube.com/watch?v=Sp80IcpcJXA&t=3s"})
+graph.invoke({"video_link":"https://www.youtube.com/watch?v=xQp4tmJscMQ"})

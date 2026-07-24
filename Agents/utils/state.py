@@ -8,6 +8,7 @@ class videoState(TypedDict, total=False):
     audio_file_path: str
     time_stamp: List[Dict]
     clips_transcript: List[Dict]
-    title: str
+    clips_with_title: List[Dict]
+    output_title : list[Dict]
     error: Optional[str]
     message: Optional[str]
